@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+  <meta name="theme-color" content="#17152b">
+  <title>Crazy Funny World</title>
+
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+
+<body>
+
+  <div id="game"></div>
+
+  <header class="hud">
+    <h2>😂 CRAZY FUNNY WORLD</h2>
+    <div id="score">⭐ 0</div>
+    <div id="status">Explore the funny world!</div>
+  </header>
+
+  <div class="sound-panel">
+    <button onclick="playSound('laugh')">🤣 Laugh</button>
+    <button onclick="playSound('boing')">🌀 Boing</button>
+    <button onclick="playSound('scream')">😱 Scream</button>
+    <button onclick="playSound('bonk')">🔨 Bonk</button>
+    <button onclick="playSound('fart')">💨 Fart</button>
+  </div>
+
+  <div class="controls">
+    <div id="joystick">
+      <div id="stick"></div>
+    </div>
+
+    <div class="actions">
+      <button id="jump">JUMP</button>
+      <button id="dance">🕺 DANCE</button>
+      <button id="random">🎲 RANDOM</button>
+    </div>
+  </div>
+
+  <div id="startScreen">
+    <div class="startBox">
+      <h1>CRAZY FUNNY WORLD 😂</h1>
+      <p>Welcome to the craziest 3D world!</p>
+      <p>Run, jump, dance, collect stars and make funny sounds.</p>
+      <button id="start">START GAME ▶</button>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
