@@ -1,834 +1,564 @@
-import * as THREE from
-"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
-// ======================================
-// CRAZY FUNNY WORLD - MAIN GAME ENGINE
-// ======================================
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 
-const game = document.getElementById("game");
+// CRAZY FUNNY WORLD - realistic character edition
+const $ = (id) => document.getElementById(id);
+const game = $("game");
+
+if (!game) throw new Error("Game container not found.");
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 35, 120);
+scene.background = new THREE.Color(0x91c9ed);
+scene.fog = new THREE.Fog(0x91c9ed, 65, 230);
 
 const camera = new THREE.PerspectiveCamera(
-  65,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  300
+  65, innerWidth / innerHeight, 0.1, 500
 );
+camera.position.set(0, 6, 10);
 
 const renderer = new THREE.WebGLRenderer({
-  antialias: true
+  antialias: true,
+  powerPreference: "high-performance"
 });
-
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
 game.appendChild(renderer.domElement);
 
-// ======================================
 // LIGHTING
-// ======================================
+scene.add(new THREE.HemisphereLight(0xddeeff, 0x566044, 2));
 
-scene.add(new THREE.HemisphereLight(
-  0xffffff,
-  0x567344,
-  2
-));
+const sun = new THREE.DirectionalLight(0xfff1d5, 3);
+sun.position.set(-35, 60, 25);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -80;
+sun.shadow.camera.right = 80;
+sun.shadow.camera.top = 80;
+sun.shadow.camera.bottom = -80;
+scene.add(sun);
 
-const sunlight = new THREE.DirectionalLight(
-  0xffffff,
-  2
-);
-
-sunlight.position.set(-20, 35, 20);
-sunlight.castShadow = true;
-sunlight.shadow.mapSize.set(2048, 2048);
-
-scene.add(sunlight);
-
-// ======================================
-// MATERIALS
-// ======================================
-
-function material(color) {
-  return new THREE.MeshStandardMaterial({
-    color,
-    roughness: 0.85
-  });
+// MATERIAL HELPERS
+function mat(color, roughness = 0.9) {
+  return new THREE.MeshStandardMaterial({ color, roughness });
 }
 
-const grass = material(0x59b84d);
-const brown = material(0x80502e);
-const green = material(0x259b50);
-const blue = material(0x2879df);
-const yellow = material(0xffdc40);
-const skin = material(0xffbd8b);
-const black = material(0x171323);
-const white = material(0xffffff);
+function box(parent, w, h, d, material, x, y, z) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d), material
+  );
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  parent.add(mesh);
+  return mesh;
+}
 
-// ======================================
-// GROUND
-// ======================================
-
+// WORLD GROUND
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(220, 220),
-  grass
+  new THREE.PlaneGeometry(500, 500),
+  mat(0x587d43)
 );
-
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
-
 scene.add(ground);
 
-const grid = new THREE.GridHelper(
-  220,
-  55,
-  0x398d48,
-  0x398d48
+// ROAD
+const road = new THREE.Mesh(
+  new THREE.PlaneGeometry(15, 240),
+  mat(0x33383c)
 );
+road.rotation.x = -Math.PI / 2;
+road.position.set(0, 0.025, -45);
+scene.add(road);
 
-grid.position.y = 0.02;
-scene.add(grid);
-
-// ======================================
-// 3D OBJECT HELPERS
-// ======================================
-
-function createBox(parent, w, h, d, mat, x, y, z) {
-  const object = new THREE.Mesh(
-    new THREE.BoxGeometry(w, h, d),
-    mat
+const roadLineMaterial = mat(0xf3d66b);
+for (let z = -155; z < 75; z += 12) {
+  const line = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.22, 5),
+    roadLineMaterial
   );
-
-  object.position.set(x, y, z);
-  object.castShadow = true;
-  object.receiveShadow = true;
-
-  parent.add(object);
-
-  return object;
+  line.rotation.x = -Math.PI / 2;
+  line.position.set(0, 0.04, z);
+  scene.add(line);
 }
 
-function createSphere(parent, radius, mat, x, y, z) {
-  const object = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 24, 16),
-    mat
-  );
+// BUILDINGS
+const wallColors = [0xb9a18a, 0xd2b89b, 0x9eaaad, 0xc6c0a9];
 
-  object.position.set(x, y, z);
-  object.castShadow = true;
-
-  parent.add(object);
-
-  return object;
-}
-
-// ======================================
-// PLAYER CHARACTER
-// ======================================
-
-const player = new THREE.Group();
-
-scene.add(player);
-
-const body = createBox(
-  player, 0.9, 1.15, 0.55,
-  blue, 0, 1.15, 0
-);
-
-const head = createSphere(
-  player, 0.52, skin, 0, 2.05, 0
-);
-
-// Eyes
-createSphere(player, 0.09, white, -0.19, 2.12, 0.44);
-createSphere(player, 0.09, white, 0.19, 2.12, 0.44);
-
-createSphere(player, 0.045, black, -0.17, 2.12, 0.52);
-createSphere(player, 0.045, black, 0.21, 2.12, 0.52);
-
-// Funny mouth
-const mouth = createBox(
-  player, 0.27, 0.055, 0.04,
-  black, 0, 1.87, 0.5
-);
-
-// Hat
-const hat = new THREE.Mesh(
-  new THREE.ConeGeometry(0.55, 0.55, 8),
-  yellow
-);
-
-hat.position.y = 2.65;
-hat.castShadow = true;
-
-player.add(hat);
-
-// Arms
-const leftArm = createBox(
-  player, 0.22, 0.8, 0.22,
-  skin, -0.62, 1.25, 0
-);
-
-const rightArm = createBox(
-  player, 0.22, 0.8, 0.22,
-  skin, 0.62, 1.25, 0
-);
-
-// Legs
-const leftLeg = createBox(
-  player, 0.28, 0.7, 0.3,
-  black, -0.25, 0.35, 0
-);
-
-const rightLeg = createBox(
-  player, 0.28, 0.7, 0.3,
-  black, 0.25, 0.35, 0
-);
-
-// ======================================
-// TREES
-// ======================================
-
-function createTree(x, z) {
-
-  const tree = new THREE.Group();
-
-  tree.position.set(x, 0, z);
-
-  createBox(
-    tree, 0.5, 2, 0.5,
-    brown, 0, 1, 0
-  );
-
-  createSphere(
-    tree, 1.5, green,
-    0, 2.8, 0
-  );
-
-  createSphere(
-    tree, 1.05, material(0x39b95d),
-    -0.8, 2.5, 0.2
-  );
-
-  scene.add(tree);
-}
-
-for (let i = 0; i < 80; i++) {
-
-  const angle = Math.random() * Math.PI * 2;
-  const radius = 15 + Math.random() * 80;
-
-  createTree(
-    Math.cos(angle) * radius,
-    Math.sin(angle) * radius
-  );
-}
-
-// ======================================
-// COLORFUL HOUSES
-// ======================================
-
-const houseColors = [
-  0xff8b5e,
-  0x8b83ff,
-  0xffd45e,
-  0x65d8cb
-];
-
-for (let i = 0; i < 16; i++) {
-
-  const x = (Math.random() - 0.5) * 100;
-  const z = (Math.random() - 0.5) * 100;
-
-  if (Math.hypot(x, z) < 18) continue;
-
+function createHouse(x, z, colorIndex) {
   const house = new THREE.Group();
-
   house.position.set(x, 0, z);
 
-  createBox(
-    house,
-    5, 3.5, 5,
-    material(houseColors[i % 4]),
-    0, 1.75, 0
-  );
+  const wall = mat(wallColors[colorIndex % wallColors.length]);
+  const roof = mat(0x55433a);
+  const dark = mat(0x302b29);
+  const glass = new THREE.MeshStandardMaterial({
+    color: 0x8cc8dc, roughness: 0.25, metalness: 0.15
+  });
 
-  const roof = new THREE.Mesh(
-    new THREE.ConeGeometry(4.2, 2.5, 4),
-    material(0xc94f56)
-  );
+  box(house, 9, 5, 8, wall, 0, 2.5, 0);
+  box(house, 9.8, 0.35, 8.8, roof, 0, 5.15, 0);
+  box(house, 1.5, 2.5, 0.15, dark, 0, 1.25, 4.08);
 
-  roof.position.y = 4.7;
-  roof.rotation.y = Math.PI / 4;
-  roof.castShadow = true;
-
-  house.add(roof);
+  box(house, 1.6, 1.2, 0.12, glass, -2.8, 3, 4.1);
+  box(house, 1.6, 1.2, 0.12, glass, 2.8, 3, 4.1);
 
   scene.add(house);
 }
 
-// ======================================
+for (let i = 0; i < 18; i++) {
+  const side = i % 2 === 0 ? -1 : 1;
+  createHouse(
+    side * (13 + Math.random() * 15),
+    -110 + i * 12,
+    i
+  );
+}
+
+// TREES
+function createTree(x, z, scale = 1) {
+  const tree = new THREE.Group();
+  tree.position.set(x, 0, z);
+  tree.scale.setScalar(scale);
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.25, 0.4, 3, 8),
+    mat(0x65432c)
+  );
+  trunk.position.y = 1.5;
+  trunk.castShadow = true;
+  tree.add(trunk);
+
+  const leaves = new THREE.Mesh(
+    new THREE.SphereGeometry(2.1, 12, 10),
+    mat(0x285d31)
+  );
+  leaves.position.y = 4;
+  leaves.castShadow = true;
+  tree.add(leaves);
+
+  scene.add(tree);
+}
+
+for (let i = 0; i < 100; i++) {
+  const x = (Math.random() < 0.5 ? -1 : 1) *
+    (12 + Math.random() * 100);
+  const z = -160 + Math.random() * 260;
+  createTree(x, z, 0.7 + Math.random() * 0.8);
+}
+
+// PLAYER ROOT
+const player = new THREE.Group();
+scene.add(player);
+
+let character = null;
+let mixer = null;
+let activeAction = null;
+let animationActions = {};
+let characterReady = false;
+
+const statusDisplay = $("status");
+const scoreDisplay = $("score");
+
+function message(text) {
+  if (!statusDisplay) return;
+  statusDisplay.textContent = text;
+  clearTimeout(message.timer);
+  message.timer = setTimeout(() => {
+    statusDisplay.textContent = "Explore the funny world!";
+  }, 2500);
+}
+
+// LOAD REAL HUMAN MODEL
+// Upload your animated model to: assets/young_male.glb
+const loader = new GLTFLoader();
+
+message("Loading your realistic character...");
+
+loader.load(
+  "./assets/young_male.glb",
+  (gltf) => {
+    character = gltf.scene;
+
+    character.traverse((object) => {
+      if (object.isMesh) {
+        object.castShadow = true;
+        object.receiveShadow = true;
+        if (object.material) {
+          object.material.needsUpdate = true;
+        }
+      }
+    });
+
+    // Normalize model height to about 1.8 metres
+    const initialBox = new THREE.Box3().setFromObject(character);
+    const initialSize = initialBox.getSize(new THREE.Vector3());
+    const height = initialSize.y || 1;
+    character.scale.setScalar(1.8 / height);
+
+    // Center the model at its feet
+    const scaledBox = new THREE.Box3().setFromObject(character);
+    character.position.y -= scaledBox.min.y;
+
+    player.add(character);
+    characterReady = true;
+
+    if (gltf.animations && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(character);
+
+      const findClip = (names) => {
+        const clip = gltf.animations.find((animation) =>
+          names.some((name) =>
+            animation.name.toLowerCase().includes(name)
+          )
+        );
+        return clip || null;
+      };
+
+      const clips = {
+        idle: findClip(["idle", "standing"]),
+        walk: findClip(["walk"]),
+        run: findClip(["run"]),
+        jump: findClip(["jump"]),
+        dance: findClip(["dance", "hip", "silly"])
+      };
+
+      for (const [name, clip] of Object.entries(clips)) {
+        if (clip) {
+          animationActions[name] = mixer.clipAction(clip);
+        }
+      }
+
+      playAnimation("idle");
+    }
+
+    message("Character loaded! Welcome to Crazy Funny World.");
+  },
+  undefined,
+  (error) => {
+    console.error("Character model loading failed:", error);
+    message("Character missing: upload assets/young_male.glb");
+  }
+);
+
+function playAnimation(name) {
+  if (!mixer || !animationActions[name]) return;
+
+  const next = animationActions[name];
+  if (activeAction === next) return;
+
+  next.reset();
+  next.fadeIn(0.2);
+  if (activeAction) activeAction.fadeOut(0.2);
+  next.play();
+  activeAction = next;
+}
+
 // COLLECTIBLE STARS
-// ======================================
-
 const stars = [];
+const starMaterial = new THREE.MeshStandardMaterial({
+  color: 0xffd52a,
+  emissive: 0x9b6500,
+  emissiveIntensity: 0.5,
+  metalness: 0.3,
+  roughness: 0.3
+});
 
-for (let i = 0; i < 30; i++) {
-
+for (let i = 0; i < 35; i++) {
   const star = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.65),
-    yellow
+    starMaterial
   );
-
   star.position.set(
-    (Math.random() - 0.5) * 85,
-    0.9,
-    (Math.random() - 0.5) * 85
+    (Math.random() - 0.5) * 75,
+    1.3,
+    -130 + Math.random() * 220
   );
-
-  star.castShadow = true;
-
   scene.add(star);
-
   stars.push(star);
 }
 
-// ======================================
-// FUNNY SOUND SYSTEM
-// ======================================
-
-// All sounds are generated locally.
-// No paid API or downloaded audio required.
-
-let audioContext = null;
+// FUNNY SOUND EFFECTS
+let audio = null;
 
 function getAudio() {
-
-  if (!audioContext) {
-    audioContext = new (
-      window.AudioContext ||
-      window.webkitAudioContext
-    )();
+  if (!audio) {
+    audio = new (window.AudioContext || window.webkitAudioContext)();
   }
-
-  if (audioContext.state === "suspended") {
-    audioContext.resume();
-  }
-
-  return audioContext;
+  if (audio.state === "suspended") audio.resume();
+  return audio;
 }
 
-function tone(
-  frequency,
-  duration = 0.2,
-  type = "sine",
-  volume = 0.15,
-  slide = 0
-) {
-
+function sound(frequency, duration, type = "sine", volume = 0.15, endFrequency = null) {
   const ctx = getAudio();
-
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
 
   oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
 
-  oscillator.frequency.setValueAtTime(
-    frequency,
-    ctx.currentTime
-  );
-
-  if (slide !== 0) {
+  if (endFrequency) {
     oscillator.frequency.exponentialRampToValueAtTime(
-      Math.max(40, frequency + slide),
+      Math.max(30, endFrequency),
       ctx.currentTime + duration
     );
   }
 
-  gain.gain.setValueAtTime(
-    volume,
-    ctx.currentTime
-  );
-
+  gain.gain.setValueAtTime(volume, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(
-    0.001,
-    ctx.currentTime + duration
+    0.001, ctx.currentTime + duration
   );
 
   oscillator.connect(gain);
   gain.connect(ctx.destination);
-
   oscillator.start();
   oscillator.stop(ctx.currentTime + duration);
 }
 
-function noise(duration = 0.2, volume = 0.15) {
-
-  const ctx = getAudio();
-
-  const length = Math.floor(
-    ctx.sampleRate * duration
-  );
-
-  const buffer = ctx.createBuffer(
-    1,
-    length,
-    ctx.sampleRate
-  );
-
-  const data = buffer.getChannelData(0);
-
-  for (let i = 0; i < length; i++) {
-    data[i] = Math.random() * 2 - 1;
+function playSound(name) {
+  if (name === "laugh") {
+    [600, 760, 620, 800].forEach((f, i) =>
+      setTimeout(() => sound(f, 0.13, "square", 0.08, f - 180), i * 130)
+    );
+  } else if (name === "boing") {
+    sound(140, 0.5, "sine", 0.23, 850);
+  } else if (name === "scream") {
+    sound(900, 0.65, "sawtooth", 0.1, 180);
+  } else if (name === "bonk") {
+    sound(170, 0.15, "triangle", 0.25, 55);
+  } else if (name === "fart") {
+    sound(100, 0.42, "sawtooth", 0.12, 45);
+  } else if (name === "win") {
+    [523, 659, 784, 1046].forEach((f, i) =>
+      setTimeout(() => sound(f, 0.2, "triangle", 0.13), i * 120)
+    );
   }
-
-  const source = ctx.createBufferSource();
-  const gain = ctx.createGain();
-
-  source.buffer = buffer;
-
-  gain.gain.setValueAtTime(
-    volume,
-    ctx.currentTime
-  );
-
-  gain.gain.exponentialRampToValueAtTime(
-    0.001,
-    ctx.currentTime + duration
-  );
-
-  source.connect(gain);
-  gain.connect(ctx.destination);
-
-  source.start();
 }
 
-const soundEffects = {
+window.playSound = playSound;
 
-  laugh() {
-    for (let i = 0; i < 4; i++) {
-      setTimeout(() => {
-        tone(
-          520 + Math.random() * 220,
-          0.12,
-          "square",
-          0.09,
-          -150
-        );
-      }, i * 130);
-    }
-  },
-
-  boing() {
-    tone(180, 0.42, "sine", 0.25, 700);
-  },
-
-  scream() {
-    tone(850, 0.55, "sawtooth", 0.12, -700);
-
-    setTimeout(() => {
-      tone(420, 0.35, "sawtooth", 0.1, -300);
-    }, 120);
-  },
-
-  bonk() {
-    tone(130, 0.12, "triangle", 0.3, -70);
-    noise(0.07, 0.08);
-  },
-
-  fart() {
-    noise(0.38, 0.2);
-    tone(95, 0.35, "sawtooth", 0.08, -40);
-  },
-
-  win() {
-    [523, 659, 784, 1046].forEach((f, i) => {
-      setTimeout(() => {
-        tone(f, 0.2, "triangle", 0.14);
-      }, i * 120);
-    });
-  }
-};
-
-window.playSound = function(name) {
-
-  if (soundEffects[name]) {
-    soundEffects[name]();
-  }
-};
-
-// ======================================
-// PLAYER MOVEMENT
-// ======================================
-
+// GAME STATE
 let score = 0;
 let velocityY = 0;
-let jumping = false;
+let isJumping = false;
 let dancing = false;
-let danceTime = 0;
-
-let movement = {
-  x: 0,
-  y: 0
-};
-
+let danceTimer = 0;
+let moveX = 0;
+let moveZ = 0;
 const keys = {};
 
-const scoreDisplay = document.getElementById("score");
-const statusDisplay = document.getElementById("status");
-
-function showMessage(message) {
-
-  statusDisplay.textContent = message;
-
-  clearTimeout(showMessage.timer);
-
-  showMessage.timer = setTimeout(() => {
-    statusDisplay.textContent =
-      "Explore the funny world!";
-  }, 2200);
+function jump() {
+  if (!isJumping && player.position.y <= 0.02) {
+    velocityY = 8;
+    isJumping = true;
+    playSound("boing");
+    if (animationActions.jump) playAnimation("jump");
+  }
 }
 
-// Keyboard controls
+$("jump")?.addEventListener("click", jump);
+
+$("dance")?.addEventListener("click", () => {
+  dancing = !dancing;
+  danceTimer = 0;
+  if (dancing) {
+    playSound("laugh");
+    playAnimation("dance");
+    message("SILLY DANCE MODE!");
+  } else {
+    playAnimation("idle");
+    message("Dance stopped!");
+  }
+});
+
+$("random")?.addEventListener("click", () => {
+  const sounds = ["laugh", "boing", "scream", "bonk", "fart"];
+  playSound(sounds[Math.floor(Math.random() * sounds.length)]);
+  message("RANDOM CHAOS!");
+});
+
 window.addEventListener("keydown", (event) => {
-
   keys[event.key.toLowerCase()] = true;
-
-  if (
-    event.code === "Space" &&
-    player.position.y <= 0.01
-  ) {
-    jump();
-  }
-
-  if (event.key.toLowerCase() === "e") {
-    playSound("fart");
-  }
+  if (event.code === "Space") jump();
+  if (event.key.toLowerCase() === "e") playSound("fart");
 });
 
 window.addEventListener("keyup", (event) => {
   keys[event.key.toLowerCase()] = false;
 });
 
-// ======================================
-// JUMP
-// ======================================
-
-function jump() {
-
-  if (player.position.y <= 0.01) {
-
-    velocityY = 8.5;
-    jumping = true;
-
-    playSound("boing");
-  }
-}
-
-document.getElementById("jump").onclick = jump;
-
-// ======================================
-// DANCE
-// ======================================
-
-document.getElementById("dance").onclick = () => {
-
-  dancing = !dancing;
-  danceTime = 0;
-
-  if (dancing) {
-    playSound("laugh");
-    showMessage("DANCE MODE ACTIVATED!");
-  } else {
-    showMessage("Dance stopped!");
-  }
-};
-
-// ======================================
-// RANDOM SOUND
-// ======================================
-
-document.getElementById("random").onclick = () => {
-
-  const sounds = [
-    "laugh",
-    "boing",
-    "scream",
-    "bonk",
-    "fart"
-  ];
-
-  const selected = sounds[
-    Math.floor(Math.random() * sounds.length)
-  ];
-
-  playSound(selected);
-
-  showMessage("RANDOM CHAOS!");
-};
-
-// ======================================
-// TOUCH JOYSTICK
-// ======================================
-
-const joystick = document.getElementById("joystick");
-const stick = document.getElementById("stick");
-
-let activePointer = null;
-
-joystick.addEventListener("pointerdown", (event) => {
-
-  activePointer = event.pointerId;
-
-  joystick.setPointerCapture(activePointer);
-
-  updateJoystick(event);
-});
-
-joystick.addEventListener("pointermove", (event) => {
-
-  if (event.pointerId === activePointer) {
-    updateJoystick(event);
-  }
-});
+// MOBILE JOYSTICK
+const joystick = $("joystick");
+const stick = $("stick");
+let pointerId = null;
 
 function updateJoystick(event) {
-
   const rect = joystick.getBoundingClientRect();
-
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
-
-  let dx = event.clientX - centerX;
-  let dy = event.clientY - centerY;
+  let dx = event.clientX - (rect.left + rect.width / 2);
+  let dy = event.clientY - (rect.top + rect.height / 2);
 
   const max = 38;
   const length = Math.hypot(dx, dy);
-
   if (length > max) {
     dx = dx / length * max;
     dy = dy / length * max;
   }
 
-  movement.x = dx / max;
-  movement.y = dy / max;
-
-  stick.style.transform =
-    `translate(${dx}px, ${dy}px)`;
+  moveX = dx / max;
+  moveZ = dy / max;
+  stick.style.transform = `translate(${dx}px, ${dy}px)`;
 }
 
-function resetJoystick(event) {
+if (joystick && stick) {
+  joystick.addEventListener("pointerdown", (event) => {
+    pointerId = event.pointerId;
+    joystick.setPointerCapture(pointerId);
+    updateJoystick(event);
+  });
 
-  if (event.pointerId === activePointer) {
+  joystick.addEventListener("pointermove", (event) => {
+    if (event.pointerId === pointerId) updateJoystick(event);
+  });
 
-    activePointer = null;
-
-    movement = {
-      x: 0,
-      y: 0
-    };
-
-    stick.style.transform =
-      "translate(0, 0)";
+  function stopJoystick(event) {
+    if (event.pointerId !== pointerId) return;
+    pointerId = null;
+    moveX = 0;
+    moveZ = 0;
+    stick.style.transform = "translate(0,0)";
   }
+
+  joystick.addEventListener("pointerup", stopJoystick);
+  joystick.addEventListener("pointercancel", stopJoystick);
 }
 
-joystick.addEventListener("pointerup", resetJoystick);
-joystick.addEventListener("pointercancel", resetJoystick);
-
-// ======================================
-// START GAME
-// ======================================
-
-document.getElementById("start").onclick = () => {
-
+// START SCREEN
+$("start")?.addEventListener("click", () => {
   getAudio();
-
-  document.getElementById("startScreen").style.display =
-    "none";
-
+  $("startScreen").style.display = "none";
   playSound("win");
+  message("WELCOME TO THE MADNESS!");
+});
 
-  showMessage("WELCOME TO THE MADNESS!");
-};
-
-// ======================================
 // GAME LOOP
-// ======================================
-
 const clock = new THREE.Clock();
+const cameraOffset = new THREE.Vector3(0, 6, 10);
+const cameraLook = new THREE.Vector3();
 
 function animate() {
-
   requestAnimationFrame(animate);
 
   const delta = Math.min(clock.getDelta(), 0.04);
   const time = clock.elapsedTime;
 
-  // Movement direction
-  let x =
-    movement.x +
+  let x = moveX +
     (keys.d || keys.arrowright ? 1 : 0) -
     (keys.a || keys.arrowleft ? 1 : 0);
 
-  let z =
-    movement.y +
+  let z = moveZ +
     (keys.s || keys.arrowdown ? 1 : 0) -
     (keys.w || keys.arrowup ? 1 : 0);
 
   const length = Math.hypot(x, z);
-
   if (length > 1) {
     x /= length;
     z /= length;
   }
 
-  const speed = 9;
+  const moving = Math.hypot(x, z) > 0.08;
 
+  if (characterReady && moving && !dancing) {
+    const direction = Math.atan2(x, z);
+    player.rotation.y = THREE.MathUtils.lerp(
+      player.rotation.y, direction, 0.15
+    );
+    playAnimation("run");
+  } else if (characterReady && !dancing && !isJumping) {
+    playAnimation("idle");
+  }
+
+  const speed = 6.5;
   player.position.x += x * speed * delta;
   player.position.z += z * speed * delta;
 
-  // Character running animation
-  if (Math.hypot(x, z) > 0.08 && !dancing) {
-
-    const direction = Math.atan2(x, z);
-
-    player.rotation.y = THREE.MathUtils.lerp(
-      player.rotation.y,
-      direction,
-      0.18
-    );
-
-    leftArm.rotation.x = Math.sin(time * 13) * 0.7;
-    rightArm.rotation.x = -Math.sin(time * 13) * 0.7;
-
-    leftLeg.rotation.x = -Math.sin(time * 13) * 0.65;
-    rightLeg.rotation.x = Math.sin(time * 13) * 0.65;
-  }
+  // Keep player inside the world
+  player.position.x = THREE.MathUtils.clamp(player.position.x, -110, 110);
+  player.position.z = THREE.MathUtils.clamp(player.position.z, -175, 110);
 
   // Jump physics
-  if (jumping || player.position.y > 0) {
-
+  if (isJumping || player.position.y > 0) {
     velocityY -= 20 * delta;
-
     player.position.y += velocityY * delta;
 
     if (player.position.y <= 0) {
-
       player.position.y = 0;
-
       velocityY = 0;
-      jumping = false;
+      isJumping = false;
+      if (moving) playAnimation("run");
+      else playAnimation("idle");
     }
   }
 
-  // Dancing animation
+  // End dance after a few seconds
   if (dancing) {
-
-    danceTime += delta;
-
-    body.rotation.z = Math.sin(time * 15) * 0.35;
-    head.rotation.z = Math.sin(time * 15) * 0.25;
-
-    leftArm.rotation.z = Math.sin(time * 15) * 1.1;
-    rightArm.rotation.z = -Math.sin(time * 15) * 1.1;
-
-    if (danceTime > 7) {
-
+    danceTimer += delta;
+    if (danceTimer > 8) {
       dancing = false;
-
-      body.rotation.z = 0;
-      head.rotation.z = 0;
-
-      leftArm.rotation.z = 0;
-      rightArm.rotation.z = 0;
+      playAnimation(moving ? "run" : "idle");
     }
   }
 
-  // Collect stars
-  stars.forEach((star) => {
+  if (mixer) mixer.update(delta);
+
+  // Floating stars and collection
+  for (const star of stars) {
+    if (!star.visible) continue;
 
     star.rotation.y += delta * 1.8;
-    star.rotation.x += delta;
+    star.position.y = 1.3 + Math.sin(time * 2 + star.position.x) * 0.2;
 
-    star.position.y =
-      0.9 + Math.sin(time * 3 + star.position.x) * 0.18;
-
-    const distance = star.position.distanceTo(
-      player.position.clone().add(
-        new THREE.Vector3(0, 1, 0)
-      )
-    );
-
-    if (star.visible && distance < 1.5) {
-
+    if (star.position.distanceTo(
+      new THREE.Vector3(player.position.x, player.position.y + 1, player.position.z)
+    ) < 1.8) {
       star.visible = false;
-
       score++;
-
-      scoreDisplay.textContent = "⭐ " + score;
-
+      if (scoreDisplay) scoreDisplay.textContent = "⭐ " + score;
       playSound("win");
-
-      showMessage("STAR COLLECTED!");
+      message("STAR COLLECTED!");
     }
-  });
+  }
 
-  // Camera follows player
-  const cameraTarget = new THREE.Vector3(
+  // Third-person camera
+  const targetCamera = player.position.clone().add(cameraOffset);
+  camera.position.lerp(targetCamera, 0.07);
+
+  cameraLook.set(
     player.position.x,
-    player.position.y + 5.5,
-    player.position.z + 9
-  );
-
-  camera.position.lerp(cameraTarget, 0.08);
-
-  camera.lookAt(
-    player.position.x,
-    player.position.y + 1.2,
+    player.position.y + 1.4,
     player.position.z
   );
+  camera.lookAt(cameraLook);
 
   renderer.render(scene, camera);
 }
 
-// ======================================
-// RESPONSIVE SCREEN
-// ======================================
-
-window.addEventListener("resize", () => {
-
-  camera.aspect =
-    window.innerWidth / window.innerHeight;
-
-  camera.updateProjectionMatrix();
-
-  renderer.setSize(
-    window.innerWidth,
-    window.innerHeight
-  );
-});
-
-// ======================================
-// START RENDERING
-// ======================================
-
 animate();
 
-// ======================================
-// PWA SERVICE WORKER
-// ======================================
+// RESIZE
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+});
 
-if ("serviceWorker" in navigator &&
-    location.protocol.startsWith("http")) {
-
-  navigator.serviceWorker.register("./sw.js")
-    .catch(error => console.error(
-      "Service worker error:", error
-    ));
+// SERVICE WORKER
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("./sw.js").catch(console.warn);
 }
