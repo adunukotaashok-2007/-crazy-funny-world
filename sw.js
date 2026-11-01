@@ -1,4 +1,4 @@
-const CACHE_NAME = "crazy-funny-world-v1";
+const CACHE_NAME = "crazy-funny-world-v2";
 
 const FILES = [
   "./",
@@ -8,10 +8,9 @@ const FILES = [
   "./manifest.json"
 ];
 
-self.addEventListener("install", event => {
-
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
+    caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(FILES);
     })
   );
@@ -19,14 +18,13 @@ self.addEventListener("install", event => {
   self.skipWaiting();
 });
 
-self.addEventListener("activate", event => {
-
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(keys => {
+    caches.keys().then((keys) => {
       return Promise.all(
         keys
-          .filter(key => key !== CACHE_NAME)
-          .map(key => caches.delete(key))
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
       );
     })
   );
@@ -34,15 +32,24 @@ self.addEventListener("activate", event => {
   self.clients.claim();
 });
 
-self.addEventListener("fetch", event => {
-
+self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    caches.match(event.request).then(cached => {
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
 
-      return cached || fetch(event.request);
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, copy);
+        });
 
-    })
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
