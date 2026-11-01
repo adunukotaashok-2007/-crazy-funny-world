@@ -1,8 +1,6 @@
-
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 
-// CRAZY FUNNY WORLD - realistic character edition
 const $ = (id) => document.getElementById(id);
 const game = $("game");
 
@@ -21,6 +19,7 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true,
   powerPreference: "high-performance"
 });
+
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -43,27 +42,31 @@ sun.shadow.camera.top = 80;
 sun.shadow.camera.bottom = -80;
 scene.add(sun);
 
-// MATERIAL HELPERS
+// MATERIALS
 function mat(color, roughness = 0.9) {
   return new THREE.MeshStandardMaterial({ color, roughness });
 }
 
 function box(parent, w, h, d, material, x, y, z) {
   const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(w, h, d), material
+    new THREE.BoxGeometry(w, h, d),
+    material
   );
+
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   parent.add(mesh);
+
   return mesh;
 }
 
-// WORLD GROUND
+// GROUND
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(500, 500),
   mat(0x587d43)
 );
+
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
@@ -73,23 +76,31 @@ const road = new THREE.Mesh(
   new THREE.PlaneGeometry(15, 240),
   mat(0x33383c)
 );
+
 road.rotation.x = -Math.PI / 2;
 road.position.set(0, 0.025, -45);
 scene.add(road);
 
 const roadLineMaterial = mat(0xf3d66b);
+
 for (let z = -155; z < 75; z += 12) {
   const line = new THREE.Mesh(
     new THREE.PlaneGeometry(0.22, 5),
     roadLineMaterial
   );
+
   line.rotation.x = -Math.PI / 2;
   line.position.set(0, 0.04, z);
   scene.add(line);
 }
 
-// BUILDINGS
-const wallColors = [0xb9a18a, 0xd2b89b, 0x9eaaad, 0xc6c0a9];
+// HOUSES
+const wallColors = [
+  0xb9a18a,
+  0xd2b89b,
+  0x9eaaad,
+  0xc6c0a9
+];
 
 function createHouse(x, z, colorIndex) {
   const house = new THREE.Group();
@@ -98,8 +109,11 @@ function createHouse(x, z, colorIndex) {
   const wall = mat(wallColors[colorIndex % wallColors.length]);
   const roof = mat(0x55433a);
   const dark = mat(0x302b29);
+
   const glass = new THREE.MeshStandardMaterial({
-    color: 0x8cc8dc, roughness: 0.25, metalness: 0.15
+    color: 0x8cc8dc,
+    roughness: 0.25,
+    metalness: 0.15
   });
 
   box(house, 9, 5, 8, wall, 0, 2.5, 0);
@@ -114,6 +128,7 @@ function createHouse(x, z, colorIndex) {
 
 for (let i = 0; i < 18; i++) {
   const side = i % 2 === 0 ? -1 : 1;
+
   createHouse(
     side * (13 + Math.random() * 15),
     -110 + i * 12,
@@ -131,6 +146,7 @@ function createTree(x, z, scale = 1) {
     new THREE.CylinderGeometry(0.25, 0.4, 3, 8),
     mat(0x65432c)
   );
+
   trunk.position.y = 1.5;
   trunk.castShadow = true;
   tree.add(trunk);
@@ -139,6 +155,7 @@ function createTree(x, z, scale = 1) {
     new THREE.SphereGeometry(2.1, 12, 10),
     mat(0x285d31)
   );
+
   leaves.position.y = 4;
   leaves.castShadow = true;
   tree.add(leaves);
@@ -149,18 +166,19 @@ function createTree(x, z, scale = 1) {
 for (let i = 0; i < 100; i++) {
   const x = (Math.random() < 0.5 ? -1 : 1) *
     (12 + Math.random() * 100);
+
   const z = -160 + Math.random() * 260;
   createTree(x, z, 0.7 + Math.random() * 0.8);
 }
 
-// PLAYER ROOT
+// PLAYER
 const player = new THREE.Group();
 scene.add(player);
 
 let character = null;
 let mixer = null;
 let activeAction = null;
-let animationActions = {};
+const animationActions = {};
 let characterReady = false;
 
 const statusDisplay = $("status");
@@ -168,21 +186,24 @@ const scoreDisplay = $("score");
 
 function message(text) {
   if (!statusDisplay) return;
+
   statusDisplay.textContent = text;
+
   clearTimeout(message.timer);
+
   message.timer = setTimeout(() => {
     statusDisplay.textContent = "Explore the funny world!";
   }, 2500);
 }
 
-// LOAD REAL HUMAN MODEL
-// Upload your animated model to: assets/young_male.glb
+// LOAD YOUR HUMAN MODEL
 const loader = new GLTFLoader();
 
 message("Loading your realistic character...");
 
 loader.load(
   "./assets/young_male.glb",
+
   (gltf) => {
     character = gltf.scene;
 
@@ -190,19 +211,19 @@ loader.load(
       if (object.isMesh) {
         object.castShadow = true;
         object.receiveShadow = true;
+
         if (object.material) {
           object.material.needsUpdate = true;
         }
       }
     });
 
-    // Normalize model height to about 1.8 metres
     const initialBox = new THREE.Box3().setFromObject(character);
     const initialSize = initialBox.getSize(new THREE.Vector3());
     const height = initialSize.y || 1;
+
     character.scale.setScalar(1.8 / height);
 
-    // Center the model at its feet
     const scaledBox = new THREE.Box3().setFromObject(character);
     character.position.y -= scaledBox.min.y;
 
@@ -213,12 +234,11 @@ loader.load(
       mixer = new THREE.AnimationMixer(character);
 
       const findClip = (names) => {
-        const clip = gltf.animations.find((animation) =>
+        return gltf.animations.find((animation) =>
           names.some((name) =>
             animation.name.toLowerCase().includes(name)
           )
-        );
-        return clip || null;
+        ) || null;
       };
 
       const clips = {
@@ -240,10 +260,12 @@ loader.load(
 
     message("Character loaded! Welcome to Crazy Funny World.");
   },
+
   undefined,
+
   (error) => {
     console.error("Character model loading failed:", error);
-    message("Character missing: upload assets/young_male.glb");
+    message("Character missing: check assets/young_male.glb");
   }
 );
 
@@ -251,17 +273,23 @@ function playAnimation(name) {
   if (!mixer || !animationActions[name]) return;
 
   const next = animationActions[name];
+
   if (activeAction === next) return;
 
   next.reset();
   next.fadeIn(0.2);
-  if (activeAction) activeAction.fadeOut(0.2);
+
+  if (activeAction) {
+    activeAction.fadeOut(0.2);
+  }
+
   next.play();
   activeAction = next;
 }
 
-// COLLECTIBLE STARS
+// STARS
 const stars = [];
+
 const starMaterial = new THREE.MeshStandardMaterial({
   color: 0xffd52a,
   emissive: 0x9b6500,
@@ -275,11 +303,13 @@ for (let i = 0; i < 35; i++) {
     new THREE.OctahedronGeometry(0.65),
     starMaterial
   );
+
   star.position.set(
     (Math.random() - 0.5) * 75,
     1.3,
     -130 + Math.random() * 220
   );
+
   scene.add(star);
   stars.push(star);
 }
@@ -289,19 +319,39 @@ let audio = null;
 
 function getAudio() {
   if (!audio) {
-    audio = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContextClass =
+      window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioContextClass) {
+      throw new Error("Audio is not supported on this browser.");
+    }
+
+    audio = new AudioContextClass();
   }
-  if (audio.state === "suspended") audio.resume();
+
+  if (audio.state === "suspended") {
+    audio.resume();
+  }
+
   return audio;
 }
 
-function sound(frequency, duration, type = "sine", volume = 0.15, endFrequency = null) {
+function sound(
+  frequency,
+  duration,
+  type = "sine",
+  volume = 0.15,
+  endFrequency = null
+) {
   const ctx = getAudio();
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
 
   oscillator.type = type;
-  oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+  oscillator.frequency.setValueAtTime(
+    frequency,
+    ctx.currentTime
+  );
 
   if (endFrequency) {
     oscillator.frequency.exponentialRampToValueAtTime(
@@ -312,32 +362,52 @@ function sound(frequency, duration, type = "sine", volume = 0.15, endFrequency =
 
   gain.gain.setValueAtTime(volume, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(
-    0.001, ctx.currentTime + duration
+    0.001,
+    ctx.currentTime + duration
   );
 
   oscillator.connect(gain);
   gain.connect(ctx.destination);
+
   oscillator.start();
   oscillator.stop(ctx.currentTime + duration);
 }
 
 function playSound(name) {
-  if (name === "laugh") {
-    [600, 760, 620, 800].forEach((f, i) =>
-      setTimeout(() => sound(f, 0.13, "square", 0.08, f - 180), i * 130)
-    );
-  } else if (name === "boing") {
-    sound(140, 0.5, "sine", 0.23, 850);
-  } else if (name === "scream") {
-    sound(900, 0.65, "sawtooth", 0.1, 180);
-  } else if (name === "bonk") {
-    sound(170, 0.15, "triangle", 0.25, 55);
-  } else if (name === "fart") {
-    sound(100, 0.42, "sawtooth", 0.12, 45);
-  } else if (name === "win") {
-    [523, 659, 784, 1046].forEach((f, i) =>
-      setTimeout(() => sound(f, 0.2, "triangle", 0.13), i * 120)
-    );
+  try {
+    if (name === "laugh") {
+      [600, 760, 620, 800].forEach((f, i) => {
+        setTimeout(() => {
+          sound(f, 0.13, "square", 0.08, f - 180);
+        }, i * 130);
+      });
+    }
+
+    if (name === "boing") {
+      sound(140, 0.5, "sine", 0.23, 850);
+    }
+
+    if (name === "scream") {
+      sound(900, 0.65, "sawtooth", 0.1, 180);
+    }
+
+    if (name === "bonk") {
+      sound(170, 0.15, "triangle", 0.25, 55);
+    }
+
+    if (name === "fart") {
+      sound(100, 0.42, "sawtooth", 0.12, 45);
+    }
+
+    if (name === "win") {
+      [523, 659, 784, 1046].forEach((f, i) => {
+        setTimeout(() => {
+          sound(f, 0.2, "triangle", 0.13);
+        }, i * 120);
+      });
+    }
+  } catch (error) {
+    console.warn("Sound unavailable:", error);
   }
 }
 
@@ -351,6 +421,7 @@ let dancing = false;
 let danceTimer = 0;
 let moveX = 0;
 let moveZ = 0;
+
 const keys = {};
 
 function jump() {
@@ -358,7 +429,10 @@ function jump() {
     velocityY = 8;
     isJumping = true;
     playSound("boing");
-    if (animationActions.jump) playAnimation("jump");
+
+    if (animationActions.jump) {
+      playAnimation("jump");
+    }
   }
 }
 
@@ -367,6 +441,7 @@ $("jump")?.addEventListener("click", jump);
 $("dance")?.addEventListener("click", () => {
   dancing = !dancing;
   danceTimer = 0;
+
   if (dancing) {
     playSound("laugh");
     playAnimation("dance");
@@ -378,15 +453,30 @@ $("dance")?.addEventListener("click", () => {
 });
 
 $("random")?.addEventListener("click", () => {
-  const sounds = ["laugh", "boing", "scream", "bonk", "fart"];
-  playSound(sounds[Math.floor(Math.random() * sounds.length)]);
+  const sounds = [
+    "laugh",
+    "boing",
+    "scream",
+    "bonk",
+    "fart"
+  ];
+
+  playSound(
+    sounds[Math.floor(Math.random() * sounds.length)]
+  );
+
   message("RANDOM CHAOS!");
 });
 
+// KEYBOARD
 window.addEventListener("keydown", (event) => {
   keys[event.key.toLowerCase()] = true;
+
   if (event.code === "Space") jump();
-  if (event.key.toLowerCase() === "e") playSound("fart");
+
+  if (event.key.toLowerCase() === "e") {
+    playSound("fart");
+  }
 });
 
 window.addEventListener("keyup", (event) => {
@@ -396,15 +486,21 @@ window.addEventListener("keyup", (event) => {
 // MOBILE JOYSTICK
 const joystick = $("joystick");
 const stick = $("stick");
+
 let pointerId = null;
 
 function updateJoystick(event) {
   const rect = joystick.getBoundingClientRect();
-  let dx = event.clientX - (rect.left + rect.width / 2);
-  let dy = event.clientY - (rect.top + rect.height / 2);
+
+  let dx = event.clientX -
+    (rect.left + rect.width / 2);
+
+  let dy = event.clientY -
+    (rect.top + rect.height / 2);
 
   const max = 38;
   const length = Math.hypot(dx, dy);
+
   if (length > max) {
     dx = dx / length * max;
     dy = dy / length * max;
@@ -412,7 +508,9 @@ function updateJoystick(event) {
 
   moveX = dx / max;
   moveZ = dy / max;
-  stick.style.transform = `translate(${dx}px, ${dy}px)`;
+
+  stick.style.transform =
+    `translate(${dx}px, ${dy}px)`;
 }
 
 if (joystick && stick) {
@@ -423,14 +521,18 @@ if (joystick && stick) {
   });
 
   joystick.addEventListener("pointermove", (event) => {
-    if (event.pointerId === pointerId) updateJoystick(event);
+    if (event.pointerId === pointerId) {
+      updateJoystick(event);
+    }
   });
 
   function stopJoystick(event) {
     if (event.pointerId !== pointerId) return;
+
     pointerId = null;
     moveX = 0;
     moveZ = 0;
+
     stick.style.transform = "translate(0,0)";
   }
 
@@ -438,9 +540,14 @@ if (joystick && stick) {
   joystick.addEventListener("pointercancel", stopJoystick);
 }
 
-// START SCREEN
+// START GAME
 $("start")?.addEventListener("click", () => {
-  getAudio();
+  try {
+    getAudio();
+  } catch (error) {
+    console.warn(error);
+  }
+
   $("startScreen").style.display = "none";
   playSound("win");
   message("WELCOME TO THE MADNESS!");
@@ -450,6 +557,7 @@ $("start")?.addEventListener("click", () => {
 const clock = new THREE.Clock();
 const cameraOffset = new THREE.Vector3(0, 6, 10);
 const cameraLook = new THREE.Vector3();
+const playerTarget = new THREE.Vector3();
 
 function animate() {
   requestAnimationFrame(animate);
@@ -466,6 +574,7 @@ function animate() {
     (keys.w || keys.arrowup ? 1 : 0);
 
   const length = Math.hypot(x, z);
+
   if (length > 1) {
     x /= length;
     z /= length;
@@ -473,25 +582,38 @@ function animate() {
 
   const moving = Math.hypot(x, z) > 0.08;
 
-  if (characterReady && moving && !dancing) {
+  if (characterReady && moving && !dancing && !isJumping) {
     const direction = Math.atan2(x, z);
+
     player.rotation.y = THREE.MathUtils.lerp(
-      player.rotation.y, direction, 0.15
+      player.rotation.y,
+      direction,
+      0.15
     );
+
     playAnimation("run");
-  } else if (characterReady && !dancing && !isJumping) {
+  } else if (
+    characterReady &&
+    !dancing &&
+    !isJumping
+  ) {
     playAnimation("idle");
   }
 
   const speed = 6.5;
+
   player.position.x += x * speed * delta;
   player.position.z += z * speed * delta;
 
-  // Keep player inside the world
-  player.position.x = THREE.MathUtils.clamp(player.position.x, -110, 110);
-  player.position.z = THREE.MathUtils.clamp(player.position.z, -175, 110);
+  player.position.x = THREE.MathUtils.clamp(
+    player.position.x, -110, 110
+  );
 
-  // Jump physics
+  player.position.z = THREE.MathUtils.clamp(
+    player.position.z, -175, 110
+  );
+
+  // JUMP PHYSICS
   if (isJumping || player.position.y > 0) {
     velocityY -= 20 * delta;
     player.position.y += velocityY * delta;
@@ -500,41 +622,54 @@ function animate() {
       player.position.y = 0;
       velocityY = 0;
       isJumping = false;
+
       if (moving) playAnimation("run");
       else playAnimation("idle");
     }
   }
 
-  // End dance after a few seconds
+  // DANCE TIMER
   if (dancing) {
     danceTimer += delta;
+
     if (danceTimer > 8) {
       dancing = false;
       playAnimation(moving ? "run" : "idle");
     }
   }
 
-  if (mixer) mixer.update(delta);
+  if (mixer) {
+    mixer.update(delta);
+  }
 
-  // Floating stars and collection
+  // STAR COLLECTION
+  playerTarget.set(
+    player.position.x,
+    player.position.y + 1,
+    player.position.z
+  );
+
   for (const star of stars) {
     if (!star.visible) continue;
 
     star.rotation.y += delta * 1.8;
-    star.position.y = 1.3 + Math.sin(time * 2 + star.position.x) * 0.2;
+    star.position.y =
+      1.3 + Math.sin(time * 2 + star.position.x) * 0.2;
 
-    if (star.position.distanceTo(
-      new THREE.Vector3(player.position.x, player.position.y + 1, player.position.z)
-    ) < 1.8) {
+    if (star.position.distanceTo(playerTarget) < 1.8) {
       star.visible = false;
       score++;
-      if (scoreDisplay) scoreDisplay.textContent = "⭐ " + score;
+
+      if (scoreDisplay) {
+        scoreDisplay.textContent = "⭐ " + score;
+      }
+
       playSound("win");
       message("STAR COLLECTED!");
     }
   }
 
-  // Third-person camera
+  // THIRD-PERSON CAMERA
   const targetCamera = player.position.clone().add(cameraOffset);
   camera.position.lerp(targetCamera, 0.07);
 
@@ -543,6 +678,7 @@ function animate() {
     player.position.y + 1.4,
     player.position.z
   );
+
   camera.lookAt(cameraLook);
 
   renderer.render(scene, camera);
@@ -554,11 +690,16 @@ animate();
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+
   renderer.setSize(innerWidth, innerHeight);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 });
 
 // SERVICE WORKER
-if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  navigator.serviceWorker.register("./sw.js").catch(console.warn);
+if (
+  "serviceWorker" in navigator &&
+  location.protocol.startsWith("http")
+) {
+  navigator.serviceWorker.register("./sw.js")
+    .catch(console.warn);
 }
