@@ -1,0 +1,10 @@
+{
+  "name": "Crazy Funny World",
+  "short_name": "Funny World",
+  "description": "A crazy 3D open-world comedy game",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#17152b",
+  "theme_color": "#17152b"
+}
